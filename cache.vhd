@@ -39,7 +39,7 @@ architecture rtl of cache is
     signal hit_nxt, dirty_nxt : std_logic;
     signal r_data_nxt : std_logic_vector(memwidth-1 downto 0);
     signal word_mux_out : std_logic_vector(memwidth-1 downto 0);
-    type word_bundle_type is array (0 to blockfield) of std_logic_vector(memwidth-1 downto 0);
+    type word_bundle_type is array (0 to blockfield**2-1) of std_logic_vector(memwidth-1 downto 0);
     signal word_bundle : word_bundle_type;
 begin
     tag <= address(memwidth-1 downto memwidth-tagfield);
