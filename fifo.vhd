@@ -11,10 +11,11 @@ entity fifo is
         constant n : natural := 8
     );
     port (
+        valid : in std_logic;
+        ready : out std_logic;
         d_in : in std_logic_vector(memwidth-1 downto 0);
-        w_en : in std_logic;
         d_out : out std_logic_vector(memwidth-1 downto 0);
-        r_en : in std_logic;
+        rewr : in std_logic;
         full : out std_logic := '0';
         empty : out std_logic := '0';
         rst : in std_logic;
@@ -23,79 +24,171 @@ entity fifo is
 end fifo;
 
 architecture rtl of fifo is
-    signal head,tail : unsigned(integer(ceil(log2(real(n))))-1 downto 0);
-    type ring_buffer_type is array (0 to n-1) of std_logic_vector(memwidth-1 downto 0);
-    signal ring_buffer : ring_buffer_type;
-    signal almost_full, almost_empty : std_logic := '0';
+    signal head, head_nxt , tail , tail_nxt : unsigned(integer(ceil(log2(real(n))))-1 downto 0);
+    type state_type is (normal, almost_full, full_state, empty_state);
+    signal state, state_nxt : state_type;
+
+    signal full_nxt,empty_nxt,ready_nxt : std_logic;
+    signal d_out_nxt : std_logic_vector(memwidth-1 downto 0);
+
+    signal d_in_reg,d_in_reg_nxt : std_logic_vector(memwidth-1 downto 0);
+    signal rewr_reg,rewr_reg_nxt : std_logic;
+
+    component ram is 
+        generic(
+            address_size : natural;
+            memwidth : natural
+        );
+        port(
+        w_data : in std_logic_vector(memwidth-1 downto 0);
+        r_data : out std_logic_vector(memwidth-1 downto 0);
+        address : in std_logic_vector(head'length-1 downto 0);
+        en : in std_logic;
+        rewr : in std_logic
+        );
+    end component;
+    signal w_data,r_data : std_logic_vector(memwidth-1 downto 0);
+    signal address : std_logic_vector(head'length-1 downto 0) ;
+    signal en,rewr_ram : std_logic;
 begin
-    HEAD_PROC : process(clk,rst)
-        variable one : unsigned(integer(ceil(log2(real(n))))-1 downto 0) := (0 =>'1', others => '0');
+    reg : process( clk,rst )
     begin
-        if rst then
-            head <= (others => '0');
+        if rst=rst_val  then
+            ready <= '1';
+            state <= empty_state;
+            head <= (head'length-1 downto 0 => '0');
+            tail <= (tail'length-1 downto 0 => '0');
             full <= '0';
+            empty <= '1';
+            d_out <= (d_out'length-1 downto 0 => '0');
+            d_in_reg <= (d_in_reg'length-1 downto 0 => '0');
+            rewr_reg <= '0';
         elsif rising_edge(clk) then
-            if w_en and (not full) then
-                ring_buffer(to_integer(head)) <= d_in;
-            end if;
-            --could be in another clk process
-            if almost_full then
-                if w_en then
-                    full <= '1';
-                end if;
-                if r_en and full then
-                    full <= '0';
-                    head <= head + one;
-                end if;
-            else
-                if w_en then
-                    head <= head + one;
-                end if;
-            end if;
-        end if;
-    end process;
+            ready <= ready_nxt;
+            state <= state_nxt;
+            head <= head_nxt;
+            tail <= tail_nxt;    
+            full <= full_nxt;
+            empty <= empty_nxt;   
+            d_out <= d_out_nxt;     
+            d_in_reg <= d_in_reg_nxt;
+            rewr_reg <= rewr_reg_nxt;
+        end if ;
+    end process ; -- reg
 
-    TAIL_PROC : process(clk,rst)
-        variable one : unsigned(integer(ceil(log2(real(n))))-1 downto 0) := (0 =>'1', others => '0');
+    full_nxt <= '1' when state_nxt=full_state else '0';
+    empty_nxt <= '1' when state_nxt=empty_state else '0';
+
+    ram0 : ram 
+        generic map(
+            address_size => address'length,
+            memwidth => memwidth
+        )
+        port map(
+            w_data => w_data,
+            r_data => r_data,
+            address => address,
+            en => en,
+            rewr => rewr_ram
+        );
+    w_data <= d_in_reg;
+    d_out_nxt <= r_data;
+    rewr_ram <= rewr_reg;
+
+    en_pro : process( all )
     begin
-        if rst then
-            tail <= (others => '0');
-        elsif rising_edge(clk) then
-            if r_en and (not empty) then
-                d_out <= ring_buffer(to_integer(tail));
-                tail <= tail + one;
-            end if;
-            if almost_empty then
-                if r_en then
-                    empty <= '1';
-                end if;
-                if w_en and empty then
-                    empty <= '0';
-                    tail <= tail + one;
-                end if;
-            else
-                if r_en then
-                    tail <= tail + one;
-                end if;
-            end if;
-        end if;
-    end process;
-
-    --empty and almost_full update combinationally, full updates sequentially
-    COMB_PROC : process(head,tail)
-        variable one : unsigned(integer(ceil(log2(real(n))))-1 downto 0) := (0 =>'1', others => '0');
-    begin
-        if head = tail then
-            almost_empty <= '1';
-        else 
-            almost_empty <= '0';
-        end if;
-
-        if (tail-one) = head then
-            almost_full <= '1';
+        if ready='0' then
+            if (state=full_state and rewr_reg='1') or (state=empty_state and rewr_reg='0') then
+                en <= '0';
+            else 
+                en <= '1';
+            end if ;
         else
-            almost_full <= '0';
-        end if;
-    end process;
+            en <= '0';
+        end if ;    
+    end process ; -- en_pro
+
+    address_pro : process( all )
+    begin
+        if rewr_reg='0' then
+            address <= std_logic_vector(tail);
+        else
+            address <= std_logic_vector(head);
+        end if ;
+    end process ; -- address_pro
+
+    ready_pro : process( all )  --one cycle delay
+    begin
+        if valid='1' and ready='1' then
+            ready_nxt <= '0';
+        else
+            ready_nxt <= '1';
+        end if ;
+    end process ; -- ready_pro
+
+    input_reg_pro : process( all )
+    begin
+        if valid='1' and ready='1' then
+            d_in_reg_nxt <= d_in;
+            rewr_reg_nxt <= rewr;
+        else
+            d_in_reg_nxt <= d_in_reg;
+            rewr_reg_nxt <= rewr_reg;
+        end if ;
+    end process ; -- input_reg_pro
+
+    state_pro : process( all )
+    begin
+        case( state ) is
+        
+            when empty_state => 
+                if ready='0' and rewr_reg='1' then
+                    state_nxt <= normal;
+                else
+                    state_nxt <= state;
+                end if ;
+            when normal =>
+                if ready='0' and rewr_reg='1' and (head+to_unsigned(2,head'length))=tail then
+                    state_nxt <= almost_full;
+                elsif ready='0' and rewr_reg='0' and (tail+to_unsigned(1,tail'length))=head then
+                    state_nxt <= empty_state;
+                else
+                    state_nxt <= state;
+                end if ;
+            when almost_full =>
+                if ready='0' and rewr='1' then
+                    state_nxt <= full_state;
+                elsif ready='0' and rewr='0' then
+                    state_nxt <= normal;
+                else 
+                    state_nxt <= state;
+                end if ;
+            when full_state =>
+                if ready='0' and rewr='0' then
+                    state_nxt <= almost_full;
+                else
+                    state_nxt <= state;
+                end if ;
+        end case ;
+    end process ; -- state_pro
+
+    head_pro : process( all )
+    begin
+        if ready='0' and ready_nxt='1' and rewr_reg='1' and (state=normal or state=empty_state) then
+            head_nxt <= head + to_unsigned(1,head'length);
+        else
+            head_nxt <= head;
+        end if ;
+    end process ; -- head_pro
+
+    tail_pro : process( all )
+    begin
+        if ready='0' and ready_nxt='1' and rewr_reg='0' and state/=empty_state then
+            tail_nxt <= tail + to_unsigned(1,head'length);
+        else
+            tail_nxt <= tail;
+        end if ;
+    end process ; -- tail_pro
+
 
 end architecture;
