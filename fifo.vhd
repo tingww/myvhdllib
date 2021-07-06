@@ -4,11 +4,12 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.math_real.all;
-use work.conf.all;
 
 entity fifo is
     generic(
-        constant n : natural := 8
+        n : natural := 8;
+        memwidth : natural := 32;
+        rst_val : std_logic := '0'
     );
     port (
         valid : in std_logic;
