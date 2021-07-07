@@ -120,8 +120,12 @@ begin
 
     ready_pro : process( all )  --one cycle delay
     begin
-        if valid='1' and ready='1' then
-            ready_nxt <= '0';
+        if valid='1' and ready='1'  then
+            if (state=full_state and rewr='1') or (state=empty_state and rewr='0') then
+                ready_nxt <= '1';
+            else
+                ready_nxt <= '0';
+            end if ;
         else
             ready_nxt <= '1';
         end if ;
@@ -157,15 +161,15 @@ begin
                     state_nxt <= state;
                 end if ;
             when almost_full =>
-                if ready='0' and rewr='1' then
+                if ready='0' and rewr_reg='1' then
                     state_nxt <= full_state;
-                elsif ready='0' and rewr='0' then
+                elsif ready='0' and rewr_reg='0' then
                     state_nxt <= normal;
                 else 
                     state_nxt <= state;
                 end if ;
             when full_state =>
-                if ready='0' and rewr='0' then
+                if ready='0' and rewr_reg='0' then
                     state_nxt <= almost_full;
                 else
                     state_nxt <= state;
@@ -175,7 +179,7 @@ begin
 
     head_pro : process( all )
     begin
-        if ready='0' and ready_nxt='1' and rewr_reg='1' and (state=normal or state=empty_state) then
+        if ready='0' and ready_nxt='1' and rewr_reg='1' and state/=full_state then
             head_nxt <= head + to_unsigned(1,head'length);
         else
             head_nxt <= head;

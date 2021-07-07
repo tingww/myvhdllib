@@ -17,7 +17,7 @@ entity ram is
 end ram ; 
 
 architecture rtl of ram is
-    type ram_type is array (0 to address_size-1) of std_logic_vector(memwidth-1 downto 0);
+    type ram_type is array (0 to 2**address_size-1) of std_logic_vector(memwidth-1 downto 0);
     signal ram_phy : ram_type;
 begin
     r_data_pro : process( all )
@@ -36,13 +36,9 @@ begin
     w_data_pro : process( all )
     begin
         if en='1' then
-            if rewr='0' then
-                ram_phy(to_integer(unsigned(address))) <= ram_phy(to_integer(unsigned(address)));
-            else
+            if rewr='1' then
                 ram_phy(to_integer(unsigned(address))) <= w_data;
             end if ;
-        else
-            ram_phy(to_integer(unsigned(address))) <= ram_phy(to_integer(unsigned(address)));
         end if ;
     end process ; -- w_data_pro
 end architecture ;
