@@ -39,6 +39,7 @@ architecture rtl of conv_enc is
     end component;
     signal q : std_logic_vector(memory_element-1 downto 0) ;
     signal d : std_logic;
+    signal d_out_nxt : std_logic_vector(d_out'range) ;
 begin
     shift_reg_0 : shift_reg 
     generic map (
@@ -52,6 +53,16 @@ begin
         q => q,
         qn => open
     );
+
+    seq : process( clk,rst )
+    begin
+        if rst='1' then
+            d_out <= (d_out'length-1 downto 0 => '0');
+        elsif rising_edge(clk) then
+            d_out <= d_out_nxt;
+        end if ;
+    end process ; -- seq
+
     output_pro : process( all ) 
         variable bin_rep : unsigned(memory_element downto 0);
         variable out_temp : std_logic := '0';
@@ -66,7 +77,7 @@ begin
                     out_temp := out_temp xor q(j-1);
                 end if ;
             end loop sweep_config;
-            d_out(i) <= out_temp;
+            d_out_nxt(i) <= out_temp;
         end loop out_gen;
     end process ; -- output_pro
 

@@ -49,11 +49,11 @@ begin
         rst <= '0';
         exhaustive_test : for i in truth_table.input_seq'range loop
             d_in <= truth_table.input_seq(i);
-            wait for clk_period/2;
+            wait until clk'event and clk='1';
+            wait for clk_period/10;
             assert d_out=truth_table.out_seq(i)
                 report "Wrong output! d_out : " & str(d_out)
                 severity warning;
-            wait until clk'event and clk='1';
         end loop ; -- exhaustive_test
 
         report "End of simlation.";
