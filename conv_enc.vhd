@@ -17,8 +17,9 @@ library work;
 
 entity conv_enc is
     generic(
-        memory_element : natural := 2;
-        config : natural_arr(1 downto 0) := (7,5)
+        constant memory_element : natural := 2;
+        constant numbers_of_gen : natural := 2;
+        constant config : natural_arr(numbers_of_gen-1 downto 0) := (7,5)
     );
     port (
         clk,rst,d_in,en : in std_logic;
@@ -55,7 +56,7 @@ begin
         variable bin_rep : unsigned(memory_element downto 0);
         variable out_temp : std_logic := '0';
     begin
-        out_gen: for i in config'length-1 downto 0 loop  --loop through every elements in config
+        out_gen: for i in numbers_of_gen-1 downto 0 loop  --loop through every elements in config
             bin_rep := to_unsigned(config(i) , bin_rep'length);
             out_temp := '0';
             sweep_config: for j in 0 to memory_element loop --loop through every bit of the binary representation
