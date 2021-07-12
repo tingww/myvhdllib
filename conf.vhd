@@ -7,6 +7,8 @@ package conf is
     constant memwidth : integer := 32;
     constant clock_period : time := 10 ns;
     constant rst_val : std_logic := '0';
+
+    type natural_arr is array (integer range <>) of natural;
     type slv_arr is array (integer range <>) of std_logic_vector(memwidth-1 downto 0);
     type alu_opcode is 
         (add, slt, sltu, andd, orr, xorr,slll, srll, sub, sraa);
