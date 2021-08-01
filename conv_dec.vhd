@@ -92,29 +92,8 @@ begin
     );
 
     en <= enable;
-    --trace back unit starts and terminates after some predefined delay, defaults to 1
     start <= enable;
     terminate <= not enable;
-
-    seq : process( clk,rst )
-    begin
-        if rst = rstval then
-            counter_delay <= to_unsigned(0, counter_delay'length);
-        elsif rising_edge(clk) then
-            counter_delay <= counter_delay_nxt;
-        end if;            
-    end process ; -- seq
-
-    counter_delay_pro : process( all )
-    begin
-        if enable='1' and counter_delay/=acsu_delay_u then
-            counter_delay_nxt <= counter_delay + to_unsigned(1, counter_delay'length);
-        elsif enable='0' and counter_delay /= to_unsigned(0, counter_delay'length) then
-            counter_delay_nxt <= counter_delay - to_unsigned(1, counter_delay'length);
-        else
-            counter_delay_nxt <= counter_delay;
-        end if ;
-    end process ; -- counter_delay_pro
 
 
 
