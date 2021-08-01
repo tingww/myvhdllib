@@ -26,7 +26,8 @@ package conv_dec_pack is
     constant state_num : natural := 4;
     constant generator_num : natural := 2;
     constant constrained_length : natural := 8;
-    constant accum_cost_metric_bits : natural := 4; --maximum accumelative cost metric is 15
+    constant accum_cost_metric_bits : natural := 8; --maximum accumelative cost metric is 15
+    constant acsu_delay : natural := 1;
     type bm_arr is array (0 to state_num-1) of std_logic_vector(generator_num-1 downto 0) ;
     type b_m_rec is record
         branch_out0 : bm_arr;
@@ -68,8 +69,8 @@ package body conv_dec_pack is
     end function;  
 
     function argmin_acm(acm : acm_arr) return integer is
-        variable temp : unsigned(acm(0)'range) := (others => '1');
-        variable index : integer;
+        variable temp : unsigned(accum_cost_metric_bits-1 downto 0) := (others => '1');
+        variable index : integer := 0;
     begin
         for i in acm'range loop     --could be better if implement into recursive tree like structure?
             if acm(i)<temp then
