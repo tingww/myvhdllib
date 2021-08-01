@@ -36,6 +36,7 @@ begin
             valid_out <= '0';
             state <= idle;
             counter <= to_unsigned(0, counter'length);
+            counter_term <= to_unsigned(0, counter'length);
         elsif rising_edge(clk) then
             d_out <= d_out_nxt;
             valid_out <= valid_out_nxt;
@@ -79,7 +80,7 @@ begin
     begin
         if state=idle then
             counter_nxt <= to_unsigned(0, counter'length);
-        elsif state/=term then
+        elsif state_nxt/=term then
             counter_nxt <= counter + to_unsigned(1, counter'length);
         else
             counter_nxt <= counter;
@@ -91,49 +92,55 @@ begin
         if state=term then
             counter_term_nxt <= counter_term + to_unsigned(1, counter_term'length);
         else
-            counter_term_nxt <= counter + to_unsigned(2, counter_term'length);  --plus 2 so the value is counter+1 when in the first cycle in termination state 
+            counter_term_nxt <= counter + to_unsigned(1, counter_term'length);  --plus 2 so the value is counter+2 when in the first cycle in termination state 
         end if ;
     end process ; -- counter1_pro
 
-    path_matrix_pro : process( clk )
+    path_matrix_pro : process( clk,rst )
     begin
-        if rising_edge(clk) then
-            if state/=idle or state/=term then
+        if rst=rstval then
+            for j in path_matrix'range loop
+                for i in path_matrix(0)'range loop
+                    path_matrix(j)(i) <= to_unsigned(0, path_matrix(0)(0)'length);
+                end loop;
+            end loop;
+        elsif rising_edge(clk) then
+            if state=ini or (state=normal and terminate='0') then
                 path_matrix( to_integer(counter) ) <= path_matrix_entry;
             end if ;
         end if ;
     end process ; -- path_matrix_pro
 
     d_out_pro : process( all )
-        type pmi_type is array (0 to constrained_length-1) of integer;
+        type pmi_type is array (0 to constrained_length+1) of integer;
         variable path_min_index : pmi_type;
-        variable origin_path : unsigned(memory_element-1 downto 0) := (others => '0');
-        variable index_term : integer;
+        variable index_term : integer := 0;
     begin
+        index_term := to_integer(counter-counter_term);
+
         -----------------trace back with compare-----------------------
-        path_min_index(0) := argmin_acm(acm);  --find the index of the minimum of accumulative state metrics
+        path_min_index(0) := argmin_acm(acm);                        --find the index of the minimum of accumulative state metrics
+        path_min_index(1) := to_integer( path_matrix_entry( path_min_index(0) ) );  
         ---------------------------------------------------------------
 
-        --trace index back to the second last path entry, delay = (constrained length)*4-1-mux(2bits)
-        path_min_loop : for i in 0 to constrained_length-2 loop     
-            path_min_index(i+1)  := to_integer( path_matrix( to_integer(counter- to_unsigned(i, counter'length)) )(path_min_index(i)) ) ;
+        --trace index back to the last path entry, delay = (constrained length)*4-1-mux(2bits)
+        path_min_loop : for i in 0 to constrained_length-1 loop     
+            path_min_index(i+2)  := to_integer( path_matrix( to_integer(counter- to_unsigned(i, counter'length)- to_unsigned(1, counter'length)) )(path_min_index(i+1)) ) ;
         end loop ; -- path_min_loop
-        origin_path := path_matrix( to_integer(counter- to_unsigned(constrained_length-1, counter'length)) )(path_min_index(constrained_length-1));   --last path entry
         
         --compare with the state table to obtain state transition input
         if state=normal then
-            if to_integer(origin_path)=state_table.prev_state0(path_min_index(constrained_length-1)) then 
-                d_out_nxt <= state_table.in0(path_min_index(constrained_length-1)) ;
-            elsif to_integer(origin_path)=state_table.prev_state1(path_min_index(constrained_length-1)) then
-                d_out_nxt <= state_table.in1(path_min_index(constrained_length-1)) ;
+            if path_min_index(constrained_length+1) = state_table.prev_state0(path_min_index(constrained_length)) then --comparing the tail one
+                d_out_nxt <= state_table.in0(path_min_index(constrained_length)) ;
+            elsif path_min_index(constrained_length+1) = state_table.prev_state1(path_min_index(constrained_length)) then
+                d_out_nxt <= state_table.in1(path_min_index(constrained_length)) ;
             else
                 report "Should not be here!" severity error;            
             end if ;
         elsif state=term then       --path_min_index(constrained_length-1 ~~ 0) as counter term counts up in termination
-            index_term := to_integer(counter-counter_term);
-            if to_integer(origin_path)=state_table.prev_state0(path_min_index(index_term)) then 
+            if path_min_index(index_term+1) = state_table.prev_state0(path_min_index(index_term)) then --comparing paths depending on the termination stages
                 d_out_nxt <= state_table.in0(path_min_index(index_term)) ;
-            elsif to_integer(origin_path)=state_table.prev_state1(path_min_index(index_term)) then
+            elsif path_min_index(index_term+1) = state_table.prev_state1(path_min_index(index_term)) then
                 d_out_nxt <= state_table.in1(path_min_index(index_term)) ;
             else
                 report "Should not be here!" severity error;            
@@ -143,4 +150,14 @@ begin
         end if ;
 
     end process ; -- d_out_pro
+
+    valid_out_pro : process( all )
+    begin
+        if state=normal or state=term then
+            valid_out_nxt <= '1';
+        else
+            valid_out_nxt <= '0';
+        end if ;
+    end process ; -- valid_out_pro
+    
 end architecture ;
