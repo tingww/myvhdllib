@@ -49,7 +49,7 @@ begin
                 acm_nxt(i) <= bm0_total;          --Select
                 path_matrix_entry_nxt(i) <= to_unsigned(state_table.prev_state0(i),path_matrix_entry(0)'length);
             else 
-                acm_nxt(i) <= bm1+acm(i);
+                acm_nxt(i) <= bm1_total;
                 path_matrix_entry_nxt(i) <= to_unsigned(state_table.prev_state1(i),path_matrix_entry(0)'length);
             end if;
         end loop;
